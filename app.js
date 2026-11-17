@@ -51,7 +51,7 @@ function layoutTitle() {
 window.addEventListener('resize', layoutTitle);
 
 /* ---------------- カードの絵 ----------------
-   手札は数字だけ。ペリカンの絵は えさのカードにだけ描く (見分けやすく) */
+   手札は数字だけ。ペリカンの絵は ペリカンのカードにだけ描く (見分けやすく) */
 function handCard(n) {
   return `<div class="hc" data-k="${(n - 1) % 5}"><div class="n">${n}</div></div>`;
 }
@@ -125,8 +125,8 @@ function render() {
       <div class="sc">${sc[i]}<small> てん</small></div>
       <div class="slot">${slot}</div></div>`;
   }).join('');
-  // 場のえさ (もちこしなら重ねて見せる)
-  // 結果を見せている間は、とられる前の えさを出したままにする
+  // 場のペリカンのカード (もちこしなら横に並べる)
+  // 結果を見せている間は、とられる前の ペリカンを出したままにする
   const pot = ui.potShow || G.pot;
   if (pot.length) {
     const html = pot.map((v, k) => foodCard(v, k)).join('');
@@ -217,12 +217,12 @@ $('#field').addEventListener('click', () => { if (ui.skip) ui.skip(); });
 function sayHTML(r) {
   if (r.winner === null) {
     // 字を大きくしたので 1 行に収まる長さにする (3 行になると手札にかかった)
-    return r.cancelled.length ? 'うちけし! えさは もちこし' : 'えさは もちこし';
+    return r.cancelled.length ? 'うちけし! ペリカンは もちこし' : 'ペリカンは もちこし';
   }
   const p = P[r.winner];
   const v = r.cards.reduce((s, x) => s + x, 0);
   const f = `<img class="face" style="--pc:${p.c}" src="${face(p.av, p.face)}" alt="">`;
-  return v >= 0 ? `${f}${esc(p.name)} パクッ! <span style="color:#ffd35c">+${v}</span>`
+  return v >= 0 ? `${f}${esc(p.name)} ゲット! <span style="color:#ffd35c">+${v}</span>`
     : `${f}${esc(p.name)} ひきとり… <span style="color:#d9c2ff">−${-v}</span>`;
 }
 
@@ -290,12 +290,12 @@ async function finish() {
 /* ---------------- ルール ---------------- */
 function rules() {
   return modal(`<h2>あそびかた</h2><ol class="rules">
-    <li>えさの カードを 1まい めくるよ</li>
+    <li>ペリカンの カードを 1まい めくるよ</li>
     <li>みんな 手札から 1まい えらんで、<b>いっせいに 出す</b></li>
-    <li>プラスの えさは、<b>いちばん 大きい数</b>の人が パクッ!</li>
-    <li>マイナスの えさは、<b>いちばん 小さい数</b>の人が ひきとる…</li>
+    <li>プラスの ペリカンは、<b>いちばん 大きい数</b>の人が ゲット!</li>
+    <li>マイナスの ペリカンは、<b>いちばん 小さい数</b>の人が ひきとる…</li>
     <li><b>おなじ数</b>を出した人は うちけし。のこった人で きめるよ</li>
-    <li>みんな うちけしなら、えさは <b>もちこし</b>。つぎの えさと いっしょに とりあう</li>
+    <li>みんな うちけしなら、ペリカンは <b>もちこし</b>。つぎの ペリカンと いっしょに とりあう</li>
     <li>15かい やったら おしまい。<b>てんが いちばん 多い人</b>の かち!</li></ol>`, ['わかった']);
 }
 
