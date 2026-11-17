@@ -70,7 +70,7 @@ img{-webkit-user-drag:none;pointer-events:none}
 .pl .slot{width:48px;height:64px;margin-top:4px;position:relative}
 .pl.win{transform:translateY(-4px);box-shadow:0 0 0 4px #ffd35c,0 0 20px 6px #ffe98a,0 4px 0 #0002}
 .pl.lose{box-shadow:0 0 0 4px #b48ce6,0 4px 0 #0002}
-.pl .you{position:absolute;top:-8px;left:-6px;background:#ff8a1f;color:#fff;font-size:12px;font-weight:900;padding:1px 8px;border-radius:999px;box-shadow:0 2px 0 #0003}
+.pl .you-unused{position:absolute;top:-8px;left:-6px;background:#ff8a1f;color:#fff;font-size:12px;font-weight:900;padding:1px 8px;border-radius:999px;box-shadow:0 2px 0 #0003}
 
 /* 手札のカード (数ごとに 5 色) */
 .hc{--c:#5db7f0;--d:#2f8fd0;position:relative;width:100%;height:100%;border-radius:12px;border:3px solid var(--c);
@@ -134,3 +134,48 @@ img{-webkit-user-drag:none;pointer-events:none}
 .rules{text-align:left;font-size:17px;line-height:1.65;padding-left:1.2em;margin:6px 0 14px}
 .rules li{margin-bottom:6px}
 .rules b{color:#e86a12}
+
+/* ---------- 有料アプリとしての見直し ---------- */
+/* 上の帯: 音の切りかえ */
+.barR{display:flex;gap:6px}
+.chip-btn.icon{width:40px;padding:0;display:flex;align-items:center;justify-content:center}
+.chip-btn.icon svg{width:22px;height:22px}
+.chip-btn.icon.off{color:#9aa9b8}
+/* まだ出していない台は、点線の枠 (何も無いと台だけ白く空いて見えた) */
+.pl .slot:empty{border:2px dashed color-mix(in srgb,var(--pc) 45%,#fff);border-radius:12px}
+/* 飛ぶカード */
+.fly{position:fixed;z-index:40;pointer-events:none;will-change:transform}
+.fly .hc,.fly .fc{width:100%;height:100%}
+.fly .fc{position:relative}
+/* 紙ふぶき */
+.confetti{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-20px;width:10px;height:14px;border-radius:2px;animation:fall linear forwards}
+.confetti i:nth-child(3n){width:8px;height:8px;border-radius:50%}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+/* 結果: 勝った人の顔を大きく、あなたの順位 */
+.big-face.win{animation:hopw 1.2s ease-in-out infinite}
+@keyframes hopw{50%{transform:translateY(-8px) rotate(-4deg)}}
+.box p.mine{font-size:20px;font-weight:900;margin:2px 0 8px}
+.box p.mine b{color:#ff8a1f;font-size:26px}
+/* タイトルの動き: 太陽が光り、光の筋がゆっくり回り、星がまたたき、海がきらめく。「あそぶ」に光が横切る */
+.tfx{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.tfx i{position:absolute;display:block}
+.tfx .sun{left:81%;top:7.6%;width:34%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle,#fffbe0cc 0%,#fff3a855 40%,transparent 70%);mix-blend-mode:screen;animation:sunp 3.6s ease-in-out infinite}
+@keyframes sunp{50%{transform:translate(-50%,-50%) scale(1.18);opacity:.6}}
+.tfx .rays{left:81%;top:7.6%;width:70%;aspect-ratio:1;margin:-35% 0 0 -35%;border-radius:50%;opacity:.35;mix-blend-mode:screen;
+  background:repeating-conic-gradient(#fff6c8 0 6deg,transparent 6deg 24deg);-webkit-mask:radial-gradient(circle,#000 10%,transparent 68%);mask:radial-gradient(circle,#000 10%,transparent 68%);
+  animation:spin 26s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tfx .star{width:18px;height:18px;margin:-9px 0 0 -9px;background:#fff;filter:drop-shadow(0 0 4px #fff7b0);
+  clip-path:polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%);opacity:0;animation:twinkle 3s ease-in-out infinite}
+.tfx .star.s{width:12px;height:12px;margin:-6px 0 0 -6px}
+@keyframes twinkle{0%,100%{opacity:0;transform:scale(.3)}45%{opacity:1;transform:scale(1) rotate(25deg)}70%{opacity:.2;transform:scale(.6) rotate(40deg)}}
+.tfx .glint{width:26px;height:4px;margin:-2px 0 0 -13px;border-radius:4px;background:#fff;opacity:0;filter:blur(.5px);animation:glint 4s ease-in-out infinite}
+@keyframes glint{0%,100%{opacity:0;transform:scaleX(.3)}40%{opacity:.9;transform:scaleX(1)}60%{opacity:0;transform:scaleX(1.3) translateX(6px)}}
+#toSetup{overflow:hidden}
+#toSetup .shine{position:absolute;top:0;bottom:0;left:-40%;width:26%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,#ffffffa0 50%,transparent);animation:shine 3.2s ease-in-out infinite 1s}
+@keyframes shine{0%{left:-40%}35%,100%{left:120%}}
+#toSetup:active,#toRules:active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){.tfx,#toSetup .shine,.confetti{display:none}.fly{display:none}}
