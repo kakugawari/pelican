@@ -1,4 +1,4 @@
-/* ペリカン パクパク ― 対象は iPhone 16 Plus (430pt) だけ */
+/* ぱくぱくペリカン ― 対象は iPhone 16 Plus (430pt) だけ */
 [hidden]{display:none!important}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* ホーム画面から開いたとき、下に帯が出ないように (CLAUDE.md の落とし穴) */
@@ -33,19 +33,15 @@ img{-webkit-user-drag:none;pointer-events:none}
 .btn.ghost:active{box-shadow:0 1px 0 #9cc8e4}
 .tbtns{display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:auto}
 
-/* ---------- タイトル ---------- */
-.sun{position:absolute;right:34px;top:calc(env(safe-area-inset-top) + 34px);width:84px;height:84px;border-radius:50%;
-  background:radial-gradient(#fff6b0,#ffd34a);box-shadow:0 0 40px 16px #fff3a0aa}
-.ttl{margin-top:70px;text-align:center;position:relative}
-.ttl-sub{display:inline-block;background:#fff;color:#2f7fb8;font-weight:900;font-size:16px;padding:5px 14px;border-radius:999px;box-shadow:0 3px 0 #9cc8e4}
-.ttl h1{margin:14px 0 0;font-size:58px;line-height:1.05;font-weight:900;color:#fff;letter-spacing:.04em;
-  -webkit-text-stroke:12px #2b2140;paint-order:stroke fill;text-shadow:0 6px 0 #2b214055}
-.ttl h1 span{color:#ffd35c;font-size:70px}
-.crew{display:flex;gap:10px;margin-top:22px}
-.crew img{width:62px;height:62px;border-radius:50%;background:#fff;box-shadow:0 0 0 4px var(--pc),0 5px 10px #0003}
-.hero{width:250px;height:205px;object-fit:cover;border-radius:36px;margin-top:22px;
-  box-shadow:0 0 0 6px #fff,0 0 0 10px #8fd46a,0 14px 26px #0004;transform:rotate(-4deg)}
-
+/* ---------- タイトル ----------
+   絵 (853x1844) は iPhone 16 Plus とほぼ同じ縦横比。画面いっぱいに敷き、余りは切る。
+   低い画面 (Claude の中で開くとき) は上を多めに切る: 下のボタンと上の題字の両方が残る位置 (app.js の layoutTitle) */
+#title{padding:0;overflow:hidden;background:#0883f2}
+.tart{position:absolute}
+.tart img{position:absolute;inset:0;width:100%;height:100%}
+.hit{position:absolute;border-radius:999px}
+.hit:active{background:#ffffff33}
+.hit:focus-visible{outline:4px solid #fff}
 /* ---------- だれと あそぶか ---------- */
 #setup h2{margin:40px 0 18px;font-size:30px;font-weight:900;color:#fff;-webkit-text-stroke:8px #2b2140;paint-order:stroke fill}
 #seats{display:flex;flex-direction:column;gap:12px;width:100%;max-width:400px}

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ペリカン パクパク</title>
+<title>ぱくぱくペリカン</title>
 <meta name="description" content="えさのカードを、数の大きさで取りあう カードゲーム">
-<meta name="theme-color" content="#7fd3f5">
+<meta name="theme-color" content="#0883f2">
 <!-- ホーム画面に追加して開いたとき、時計や電池の帯の下まで画面を描く (CLAUDE.md の落とし穴の表) -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,21 +18,12 @@
 
 <!-- タイトル -->
 <section id="title" class="screen">
-  <div class="sun"></div>
-  <div class="ttl">
-    <div class="ttl-sub">えさを とりあう カードゲーム</div>
-    <h1>ペリカン<br><span>パクパク</span></h1>
-  </div>
-  <img class="hero" src="img/p1.webp" alt="" draggable="false">
-  <div class="crew">
-    <img src="img/f_kid_happy.webp" style="--pc:#3d8bf2" alt="">
-    <img src="img/f_cat_happy.webp" style="--pc:#8058b3" alt="">
-    <img src="img/f_fox_happy.webp" style="--pc:#3e965f" alt="">
-    <img src="img/f_owl_happy.webp" style="--pc:#a0624e" alt="">
-  </div>
-  <div class="tbtns">
-    <button id="toSetup" class="btn big">あそぶ</button>
-    <button id="toRules" class="btn ghost">ルール</button>
+  <!-- 使う人が描いたタイトルの絵。ボタンも絵に描いてあるので、その上に透明な当たりを重ねる。
+       絵と当たりは同じ入れ物 (.tart) に入れ、画面の大きさに合わせて入れ物ごと縮める -->
+  <div class="tart" id="tart">
+    <img src="img/title.webp" alt="ぱくぱくペリカン" draggable="false">
+    <button id="toSetup" class="hit" style="left:18.5%;top:77.8%;width:63%;height:9%" aria-label="あそぶ"></button>
+    <button id="toRules" class="hit" style="left:28%;top:87.7%;width:44%;height:6%" aria-label="ルール"></button>
   </div>
 </section>
 

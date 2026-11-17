@@ -1,5 +1,5 @@
 /*!
- * core.js — ペリカン パクパク のルール。DOM を触らないので node でテストできる。
+ * core.js — ぱくぱくペリカン のルール。DOM を触らないので node でテストできる。
  *
  * ブラウザでは <script> で読み込むと window.Core になり、node からは require() できる。
  *

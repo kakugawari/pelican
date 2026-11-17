@@ -1,4 +1,4 @@
-/* ペリカン パクパク ― 画面と操作。ルールは core.js */
+/* ぱくぱくペリカン ― 画面と操作。ルールは core.js */
 'use strict';
 const $ = (q) => document.querySelector(q);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -33,8 +33,22 @@ function show(id) {
   for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
   // いちばん上に見えている色に合わせる (ホーム画面から開いたときの帯)
   const tc = document.querySelector('meta[name=theme-color]');
-  if (tc) tc.content = '#7fd3f5';
+  if (tc) tc.content = id === 'title' ? '#0883f2' : '#7fd3f5';
+  if (id === 'title') layoutTitle();
 }
+
+// タイトルの絵を画面いっぱいに敷く (cover)。当たりは絵と同じ入れ物の中なので、いっしょに動く
+const TITLE_W = 853, TITLE_H = 1844;
+function layoutTitle() {
+  const box = $('#title'), W = box.clientWidth, H = box.clientHeight;
+  if (!(W >= 1 && H >= 1)) return;   // 一瞬 0 で渡ってくることがある (CLAUDE.md の落とし穴)
+  const k = Math.max(W / TITLE_W, H / TITLE_H), w = TITLE_W * k, h = TITLE_H * k;
+  const t = $('#tart');
+  t.style.width = w + 'px'; t.style.height = h + 'px';
+  t.style.left = (W - w) / 2 + 'px';
+  t.style.top = (H - h) * 0.7 + 'px';   // 余りは上を 7 割・下を 3 割切る
+}
+window.addEventListener('resize', layoutTitle);
 
 /* ---------------- カードの絵 ----------------
    手札は数字だけ。ペリカンの絵は えさのカードにだけ描く (見分けやすく) */
@@ -298,4 +312,5 @@ $('#quit').onclick = async () => {
 // テストからのぞく入口
 window.__app = { get G() { return G; }, get P() { return P; }, ui, settings };
 
+layoutTitle();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});

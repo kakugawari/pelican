@@ -130,7 +130,25 @@ async function run() {
     ok(/^#[0-9a-f]{6}$/i.test(bar.theme), `帯の色 (theme-color) が決めてある (${bar.theme})`);
 
     // ------------------------------------------------ ここにアプリごとの確認を足す
-    section('アプリの操作 (ペリカン パクパク)');
+    section('アプリの操作 (ぱくぱくペリカン)');
+    {
+      // タイトルは絵 1 枚。絵に描いたボタンの上に透明な当たりがあり、指で押すとその当たりに届く (ふつうの高さと低い高さ)
+      const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+      const pg = await ctx.newPage();
+      await pg.goto(URL, { waitUntil: 'load' });
+      for (const H of [932, 780]) {
+        await pg.setViewportSize({ width: 430, height: H });
+        await pg.waitForTimeout(100);
+        const hits = await pg.evaluate(() => ['#toSetup', '#toRules'].map((q) => {
+          const r = document.querySelector(q).getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+          return { q, in: r.top >= 0 && r.bottom <= innerHeight, top: document.elementFromPoint(x, y) === document.querySelector(q) };
+        }));
+        ok(hits.every((h) => h.in && h.top), `高さ ${H}: タイトルの「あそぶ」「ルール」が画面の中にあり、押すと届く`);
+      }
+      await pg.locator('#toRules').tap();
+      ok(/あそびかた/.test(await pg.locator('#modal h2').textContent()), 'タイトルの「ルール」で あそびかたが出る');
+      await ctx.close();
+    }
     {
       // 乱数を決め打ちにして、毎回おなじ配り方で試す (CLAUDE.md の落とし穴「配り方で道すじが分かれる」)
       const seeded = async (seed, seats) => {
