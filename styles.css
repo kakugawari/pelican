@@ -73,14 +73,14 @@ img{-webkit-user-drag:none;pointer-events:none}
 .pl .you{position:absolute;top:-8px;left:-6px;background:#ff8a1f;color:#fff;font-size:12px;font-weight:900;padding:1px 8px;border-radius:999px;box-shadow:0 2px 0 #0003}
 
 /* 手札のカード (数ごとに 5 色) */
-.hc{--c:#5db7f0;--d:#2f8fd0;position:relative;width:100%;height:100%;border-radius:12px;border:3px solid var(--d);
-  background:linear-gradient(170deg,#ffffff88,transparent 40%),var(--c);overflow:hidden;box-shadow:0 3px 0 #0002}
+.hc{--c:#5db7f0;--d:#2f8fd0;position:relative;width:100%;height:100%;border-radius:12px;border:3px solid var(--c);
+  background:linear-gradient(#fff,#fff 70%,color-mix(in srgb,var(--c) 18%,#fff));overflow:hidden;box-shadow:0 3px 0 color-mix(in srgb,var(--d) 45%,transparent)}
 .hc[data-k="1"]{--c:#8fd46a;--d:#4fa83a}
-.hc[data-k="2"]{--c:#ffd35c;--d:#e8a21a}
+.hc[data-k="2"]{--c:#ffc93c;--d:#e08600}
 .hc[data-k="3"]{--c:#bf9cf0;--d:#8d61d6}
 .hc[data-k="4"]{--c:#f9a6c4;--d:#e2588a}
-.hc .n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;color:#2b2140;line-height:1;
-  -webkit-text-stroke:7px #fff;paint-order:stroke fill;font-size:var(--fs,38px);letter-spacing:-.02em}
+.hc .n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--d);line-height:1;
+  font-size:var(--fs,40px);letter-spacing:-.02em;text-shadow:0 2px 0 color-mix(in srgb,var(--d) 25%,transparent)}
 .hc.back{background:repeating-linear-gradient(45deg,#2f8fd0 0 8px,#3b9ddd 8px 16px);border-color:#fff;box-shadow:0 0 0 2px #2f8fd0,0 3px 0 #0002}
 .hc.back::after{content:"?";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:28px;color:#fff}
 .slot .hc{--fs:26px}
@@ -93,7 +93,7 @@ img{-webkit-user-drag:none;pointer-events:none}
 #field{width:100%;flex:1;min-height:0;container-type:size;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative}
 /* 縮ませない (場が足りないと flex で縦につぶれた) */
 /* えさのカードを横に並べる。もちこしでも全部の数が見えるように (重ねると後ろのカードが隠れた) */
-#food{position:relative;height:min(166px,calc(100cqh - 66px));width:100%;display:flex;justify-content:center;align-items:center;gap:10px;flex:none}
+#food{position:relative;height:min(166px,calc(100cqh - 84px));width:100%;display:flex;justify-content:center;align-items:center;gap:10px;flex:none}
 .fc{position:relative;height:100%;aspect-ratio:128/166;flex:none;container-type:inline-size;border-radius:18px;border:5px solid #4fa83a;overflow:hidden;
   background:radial-gradient(circle at 50% 60%,#fffbd0,#e6f59a 55%,#a8dc6a);box-shadow:0 0 0 4px #fff,0 10px 20px #0003}
 .fc.neg{border-color:#7b52c9;background:radial-gradient(circle at 50% 60%,#efe5ff,#c9b0f2 60%,#9c7ae0)}
@@ -105,19 +105,19 @@ img{-webkit-user-drag:none;pointer-events:none}
 #food.n2 .fc{height:90%}
 #food.n3 .fc{height:72%}
 #food.n4 .fc{height:62%}
-#say .sub{display:block;font-size:17px;-webkit-text-stroke:5px #2b2140;color:#ffd35c}
-#say{min-height:56px;flex:none;text-align:center;font-weight:900;font-size:22px;line-height:1.35;color:#fff;
+#say .sub{display:block;font-size:19px;-webkit-text-stroke:5px #2b2140;color:#ffd35c}
+#say{min-height:72px;flex:none;text-align:center;font-weight:900;font-size:27px;line-height:1.3;color:#fff;
   -webkit-text-stroke:6px #2b2140;paint-order:stroke fill;padding:0 6px}
-#say .face{width:40px;height:40px;border-radius:50%;background:#fff;vertical-align:middle;box-shadow:0 0 0 3px var(--pc);margin-right:4px}
-#say .tap{display:block;font-size:15px;-webkit-text-stroke:4px #2b2140;opacity:.9;margin-top:2px}
+#say .face{width:46px;height:46px;border-radius:50%;background:#fff;vertical-align:middle;box-shadow:0 0 0 3px var(--pc);margin-right:4px}
+#say .tap{display:block;font-size:16px;-webkit-text-stroke:4px #2b2140;opacity:.9;margin-top:2px}
 
 #hand{width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 2px}
-#hand .cell{height:86px;position:relative}
+#hand .cell{height:82px;position:relative}
 #hand .cell .hc{transition:transform .12s}
 #hand .cell.sel .hc{transform:translateY(-8px);box-shadow:0 0 0 4px #ff8a1f,0 8px 12px #0003}
 #hand .cell.used{border-radius:12px;border:2px dashed #ffffff88}
-#hand.wait .cell:not(.used) .hc{filter:saturate(.6) brightness(.95)}
-#info{width:100%;height:64px;display:flex;align-items:center;justify-content:center;gap:12px;flex:none}
+#hand.wait .cell:not(.used) .hc{opacity:.75}
+#info{width:100%;height:58px;display:flex;align-items:center;justify-content:center;gap:12px;flex:none}
 #infoTxt{font-weight:900;font-size:17px;color:#1d3b5f}
 #go{min-width:170px;height:54px;font-size:22px}
 

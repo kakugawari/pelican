@@ -216,13 +216,14 @@ $('#field').addEventListener('click', () => { if (ui.skip) ui.skip(); });
 
 function sayHTML(r) {
   if (r.winner === null) {
-    return r.cancelled.length ? 'みんな おなじ数で うちけし!<br>えさは もちこし' : 'えさは もちこし';
+    // 字を大きくしたので 1 行に収まる長さにする (3 行になると手札にかかった)
+    return r.cancelled.length ? 'うちけし! えさは もちこし' : 'えさは もちこし';
   }
   const p = P[r.winner];
   const v = r.cards.reduce((s, x) => s + x, 0);
   const f = `<img class="face" style="--pc:${p.c}" src="${face(p.av, p.face)}" alt="">`;
   return v >= 0 ? `${f}${esc(p.name)} パクッ! <span style="color:#ffd35c">+${v}</span>`
-    : `${f}${esc(p.name)} が ひきとった… <span style="color:#d9c2ff">−${-v}</span>`;
+    : `${f}${esc(p.name)} ひきとり… <span style="color:#d9c2ff">−${-v}</span>`;
 }
 
 let gameId = 0;
@@ -237,7 +238,7 @@ async function loop() {
     const v = Core.potValue(G);
     // もちこしなら、まず「あわせていくつか」を知らせる (場の合計で大きい数か小さい数かが決まる)
     const sub = G.pot.length > 1 ? `<span class="sub">もちこし ${G.pot.length}まい ・ あわせて ${v >= 0 ? '+' + v : '−' + -v}</span>` : '';
-    $('#say').innerHTML = sub + (v >= 0 ? 'いちばん <span style="color:#ffd35c">大きい数</span> が もらえる!' : 'いちばん <span style="color:#d9c2ff">小さい数</span> が ひきとる…');
+    $('#say').innerHTML = sub + (v >= 0 ? '<span style="color:#ffd35c">大きい数</span>の人が もらえる!' : '<span style="color:#d9c2ff">小さい数</span>の人が ひきとる…');
     render();
     await sleep(450);
     if (!alive()) return;

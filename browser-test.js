@@ -202,23 +202,31 @@ async function run() {
         `高さ 780 でも えさのカードは形を保って小さくなり (${low.h}pt / 縦横比 ${low.ratio})、タイルと手札に重ならない (すき間 ${low.up}・${low.down}pt)`);
       await pg.setViewportSize({ width: 430, height: 932 });
 
-      let rounds = 0, seen = [];
+      // 15 回は 低い画面 (780) で遊び、毎回の結果の字が手札にかからないことも見る
+      await pg.setViewportSize({ width: 430, height: 780 });
+      let rounds = 0, seen = [], pickFit = [];
       for (let k = 0; k < 40 && rounds < 15; k++) {
         if (!(await pg.evaluate(() => document.querySelector('#modal').hidden))) break;
         const n = await pg.evaluate(() => window.__app.G.hands[0][0]);
+        // えらぶ前の案内 (大きい数が もらえる / 小さい数が ひきとる) も、手札にかからない
+        pickFit.push(await pg.evaluate(() => ({ say: document.querySelector('#say').textContent,
+          fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top + 0.5 })));
         await pg.locator(`#hand .cell[data-n="${n}"]`).tap();
         await pg.locator('#go').tap();
         rounds++;
         // めくったあと: 出したカードが 4 人ぶん見え、手札から消えている
         await pg.waitForFunction(() => window.__app.ui.plays && window.__app.ui.plays.revealed, null, { timeout: 4000 });
         seen.push(await pg.evaluate((n) => ({ shown: document.querySelectorAll('#players .slot .hc:not(.back)').length,
-          gone: !!document.querySelector(`#hand .cell.used[data-n="${n}"]`), say: document.querySelector('#say').textContent }), n));
+          gone: !!document.querySelector(`#hand .cell.used[data-n="${n}"]`), say: document.querySelector('#say').textContent,
+          fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top + 0.5 }), n));
         await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
         await pg.waitForFunction(() => window.__app.ui.picking != null || !document.querySelector('#modal').hidden, null, { timeout: 8000 });
       }
       ok(rounds === 15, `15 回 カードを出せる (${rounds} 回)`);
       ok(seen.every((s) => s.shown === 4 && s.gone), '毎回 4 人ぶんのカードが表に出て、出したカードは手札から消える');
-      ok(seen.some((s) => /パクッ|ひきとった/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
+      ok(pickFit.every((s) => s.fit), `高さ 780 で 15 回とも、えらぶ前の案内が手札にかからない (${pickFit.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
+      ok(seen.every((s) => s.fit), `高さ 780 で 15 回とも、結果の字が手札にかからない (${seen.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
+      ok(seen.some((s) => /パクッ|ひきとり/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
       const end = await pg.evaluate(() => {
         const G = window.__app.G, sc = Core.scores(G);
         const rows = [...document.querySelectorAll('#modal .rk .pt')].map((e) => +e.textContent);
@@ -242,8 +250,12 @@ async function run() {
       await pg.locator('#hand .cell[data-n="7"]').tap();
       await pg.locator('#go').tap();
       await pg.waitForFunction(() => window.__app.ui.result);
-      const tie = await pg.evaluate(() => ({ say: document.querySelector('#say').textContent, x: document.querySelectorAll('#players .x').length }));
-      ok(/もちこし/.test(tie.say) && tie.x === 2, `同じ数は ✕ で打ち消し、えさは もちこし (${tie.say.slice(0, 22)} / ✕ ${tie.x})`);
+      // 低い画面でも、結果の字が手札にかからない (字を大きくしたら 3 行になって かかった)
+      await pg.setViewportSize({ width: 430, height: 780 });
+      const tie = await pg.evaluate(() => ({ say: document.querySelector('#say').textContent, x: document.querySelectorAll('#players .x').length,
+        fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top }));
+      await pg.setViewportSize({ width: 430, height: 932 });
+      ok(/もちこし/.test(tie.say) && tie.x === 2 && tie.fit, `同じ数は ✕ で打ち消し、えさは もちこし (${tie.say.slice(0, 22)} / ✕ ${tie.x})`);
       await pg.evaluate(() => { Core.cpuPick = window.__realPick; });
       await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
       await pg.waitForFunction(() => window.__app.ui.picking != null);
@@ -252,8 +264,9 @@ async function run() {
         const ov = (a, b) => !(a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5);
         const cs = [...document.querySelectorAll('#food .fc')].map((e) => e.getBoundingClientRect());
         const pl = document.querySelector('#players').getBoundingClientRect(), say = document.querySelector('#say').getBoundingClientRect();
+        const hand = document.querySelector('#hand').getBoundingClientRect();
         return { n: cs.length, hit: cs.some((a, i) => cs.some((b, j) => i < j && ov(a, b))),
-          inside: cs.every((c) => c.left >= 0 && c.right <= 430 && c.top >= pl.bottom && c.bottom <= say.top),
+          inside: cs.every((c) => c.left >= 0 && c.right <= 430 && c.top >= pl.bottom && c.bottom <= say.top) && say.bottom <= hand.top,
           h: Math.round(cs[0].height), say: document.querySelector('#say').textContent };
       });
       const carry = await look();
