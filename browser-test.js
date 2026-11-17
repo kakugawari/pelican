@@ -130,21 +130,178 @@ async function run() {
     ok(/^#[0-9a-f]{6}$/i.test(bar.theme), `帯の色 (theme-color) が決めてある (${bar.theme})`);
 
     // ------------------------------------------------ ここにアプリごとの確認を足す
-    section('アプリの操作');
-    if (!(await phone.locator('#btnAction').count())) {
-      skip('雛形のボタンが無い (アーティファクトから取り込んだ)。アプリに合わせた確認をここに書く');
-    } else {
-    await phone.locator('#btnAction').tap();
-    await phone.waitForTimeout(120);
-    const after = await phone.evaluate(() => ({
-      count: window.__app.state().count,
-      shown: document.getElementById('result').textContent
-    }));
-    ok(after.count === 1 && after.shown !== '—', `ボタンを押すと結果が出る (${after.shown})`);
+    section('アプリの操作 (ぱくぱくペリカン)');
+    {
+      // タイトルは絵 1 枚。絵に描いたボタンの上に透明な当たりがあり、指で押すとその当たりに届く (ふつうの高さと低い高さ)
+      const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+      const pg = await ctx.newPage();
+      await pg.goto(URL, { waitUntil: 'load' });
+      for (const H of [932, 780]) {
+        await pg.setViewportSize({ width: 430, height: H });
+        await pg.waitForTimeout(100);
+        const hits = await pg.evaluate(() => ['#toSetup', '#toRules'].map((q) => {
+          const r = document.querySelector(q).getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+          return { q, in: r.top >= 0 && r.bottom <= innerHeight, top: document.elementFromPoint(x, y) === document.querySelector(q) };
+        }));
+        ok(hits.every((h) => h.in && h.top), `高さ ${H}: タイトルの「あそぶ」「ルール」が画面の中にあり、押すと届く`);
+      }
+      await pg.locator('#toRules').tap();
+      ok(/あそびかた/.test(await pg.locator('#modal h2').textContent()), 'タイトルの「ルール」で あそびかたが出る');
+      await ctx.close();
+    }
+    {
+      // 乱数を決め打ちにして、毎回おなじ配り方で試す (CLAUDE.md の落とし穴「配り方で道すじが分かれる」)
+      const seeded = async (seed, seats) => {
+        const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true, isMobile: true });
+        const pg = await ctx.newPage();
+        pg.on('pageerror', (e) => errors.push('ゲーム: ' + e.message));
+        await pg.addInitScript(({ seed, seats }) => {
+          let a = seed >>> 0;
+          Math.random = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+          if (seats) localStorage.setItem('pelican-v1', JSON.stringify({ seats }));
+        }, { seed, seats });
+        await pg.goto(URL, { waitUntil: 'load' });
+        await pg.locator('#toSetup').tap();
+        await pg.locator('#start').tap();
+        return { ctx, pg };
+      };
+      const waitPick = (pg) => pg.waitForFunction(() => window.__app.ui.picking != null || !document.querySelector('#modal').hidden, null, { timeout: 8000 });
 
-    // 押した直後に表示が飛ばないか (CSS アニメーションの上書き事故よけ)
-    const jump = await measureJump(phone, '#result', 'document.getElementById("btnAction").click()');
-    ok(jump < 12, `押した直後に表示が飛ばない (最大ずれ ${jump}px)`);
+      // ひとり + CPU 3 人で 15 回あそぶ。読む間はタップで進める
+      const { ctx, pg } = await seeded(5, ['ひと', 'CPU', 'CPU', 'CPU']);
+      await waitPick(pg);
+      const goHidden = await pg.evaluate(() => getComputedStyle(document.querySelector('#go')).display);
+      ok(goHidden === 'none', `カードをえらぶまで「これを 出す」は出さない (${goHidden})`);
+      // 15 まいの手札が、送らずに全部 画面の中に見える。安全域 (上59・下34) を差し込んでも はみ出さない
+      const fit = await pg.evaluate(() => {
+        const cells = [...document.querySelectorAll('#hand .cell')].map((c) => c.getBoundingClientRect());
+        const g = document.querySelector('#game');
+        g.style.paddingTop = '69px'; g.style.paddingBottom = '44px';
+        const info = document.querySelector('#info').getBoundingClientRect(), food = document.querySelector('#food .fc').getBoundingClientRect();
+        const say = document.querySelector('#say').getBoundingClientRect(), pl = document.querySelector('#players').getBoundingClientRect();
+        const hand = document.querySelector('#hand').getBoundingClientRect();
+        const r = { n: cells.length, inside: cells.every((b) => b.top >= 0 && b.bottom <= 932 && b.left >= 0 && b.right <= 430),
+          bottom: Math.round(info.bottom), over: g.scrollHeight - g.clientHeight, gap: Math.round(food.top - pl.bottom), gap2: Math.round(hand.top - say.bottom),
+          fw: Math.round(food.width), fh: Math.round(food.height) };
+        g.style.paddingTop = ''; g.style.paddingBottom = '';
+        return r;
+      });
+      ok(fit.n === 15 && fit.inside, `手札 15 まいが 画面の中に見える (${fit.n} まい)`);
+      ok(fit.over <= 0 && fit.bottom <= 932 - 34 + 1 && fit.gap >= 0 && fit.gap2 >= 0,
+        `安全域を入れても はみ出さず、えさが 人のタイルにも手札にも重ならない (下 ${fit.bottom}pt / あまり ${fit.over} / すき間 上 ${fit.gap}pt・下 ${fit.gap2}pt)`);
+      // えさのカードそのものの大きさを見る (高さが足りないと flex で縦につぶれ、すき間だけ見る見張りは通っていた)
+      ok(fit.fw === 128 && fit.fh === 166, `安全域を入れても えさのカードが つぶれない (${fit.fw}x${fit.fh}pt / 決めた大きさ 128x166)`);
+      // テストプレイ (Claude の中で開く) は画面が低い。そこでは形を保ったまま 小さくなり、重ならない
+      await pg.setViewportSize({ width: 430, height: 780 });
+      const low = await pg.evaluate(() => {
+        const r = (q) => document.querySelector(q).getBoundingClientRect();
+        const f = r('#food .fc'), pl = r('#players'), say = r('#say'), hand = r('#hand');
+        return { ratio: +(f.width / f.height).toFixed(3), h: Math.round(f.height), up: Math.round(f.top - pl.bottom), down: Math.round(hand.top - say.bottom) };
+      });
+      ok(Math.abs(low.ratio - 128 / 166) < 0.01 && low.h >= 100 && low.up >= 0 && low.down >= 0,
+        `高さ 780 でも えさのカードは形を保って小さくなり (${low.h}pt / 縦横比 ${low.ratio})、タイルと手札に重ならない (すき間 ${low.up}・${low.down}pt)`);
+      await pg.setViewportSize({ width: 430, height: 932 });
+
+      let rounds = 0, seen = [];
+      for (let k = 0; k < 40 && rounds < 15; k++) {
+        if (!(await pg.evaluate(() => document.querySelector('#modal').hidden))) break;
+        const n = await pg.evaluate(() => window.__app.G.hands[0][0]);
+        await pg.locator(`#hand .cell[data-n="${n}"]`).tap();
+        await pg.locator('#go').tap();
+        rounds++;
+        // めくったあと: 出したカードが 4 人ぶん見え、手札から消えている
+        await pg.waitForFunction(() => window.__app.ui.plays && window.__app.ui.plays.revealed, null, { timeout: 4000 });
+        seen.push(await pg.evaluate((n) => ({ shown: document.querySelectorAll('#players .slot .hc:not(.back)').length,
+          gone: !!document.querySelector(`#hand .cell.used[data-n="${n}"]`), say: document.querySelector('#say').textContent }), n));
+        await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
+        await pg.waitForFunction(() => window.__app.ui.picking != null || !document.querySelector('#modal').hidden, null, { timeout: 8000 });
+      }
+      ok(rounds === 15, `15 回 カードを出せる (${rounds} 回)`);
+      ok(seen.every((s) => s.shown === 4 && s.gone), '毎回 4 人ぶんのカードが表に出て、出したカードは手札から消える');
+      ok(seen.some((s) => /パクッ|ひきとった/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
+      const end = await pg.evaluate(() => {
+        const G = window.__app.G, sc = Core.scores(G);
+        const rows = [...document.querySelectorAll('#modal .rk .pt')].map((e) => +e.textContent);
+        return { modal: !document.querySelector('#modal').hidden, rows, sc: sc.slice().sort((a, b) => b - a), left: G.hands.flat().length };
+      });
+      ok(end.modal && end.left === 0 && JSON.stringify(end.rows) === JSON.stringify(end.sc),
+        `おわると 順位が出て、てんが ゲームの記録と合う (${end.rows.join(' / ')})`);
+      await ctx.close();
+    }
+    {
+      // もちこし: みんな打ち消しのあと、えさを重ねて「もちこし」と出す
+      const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+      const pg = await ctx.newPage();
+      await pg.addInitScript(() => localStorage.setItem('pelican-v1', JSON.stringify({ seats: ['ひと', 'CPU', 'おやすみ', 'おやすみ'] })));
+      await pg.goto(URL, { waitUntil: 'load' });
+      await pg.locator('#toSetup').tap();
+      await pg.locator('#start').tap();
+      await pg.waitForFunction(() => window.__app.ui.picking != null);
+      // CPU に こちらと同じ数を出させる
+      await pg.evaluate(() => { window.__realPick = Core.cpuPick; Core.cpuPick = () => 7; });
+      await pg.locator('#hand .cell[data-n="7"]').tap();
+      await pg.locator('#go').tap();
+      await pg.waitForFunction(() => window.__app.ui.result);
+      const tie = await pg.evaluate(() => ({ say: document.querySelector('#say').textContent, x: document.querySelectorAll('#players .x').length }));
+      ok(/もちこし/.test(tie.say) && tie.x === 2, `同じ数は ✕ で打ち消し、えさは もちこし (${tie.say.slice(0, 22)} / ✕ ${tie.x})`);
+      await pg.evaluate(() => { Core.cpuPick = window.__realPick; });
+      await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
+      await pg.waitForFunction(() => window.__app.ui.picking != null);
+      // もちこしのえさは横に並べ、どのカードも ほかと重ならずに全部見える (重ねていたら後ろのカードが隠れた)
+      const look = async () => pg.evaluate(() => {
+        const ov = (a, b) => !(a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5);
+        const cs = [...document.querySelectorAll('#food .fc')].map((e) => e.getBoundingClientRect());
+        const pl = document.querySelector('#players').getBoundingClientRect(), say = document.querySelector('#say').getBoundingClientRect();
+        return { n: cs.length, hit: cs.some((a, i) => cs.some((b, j) => i < j && ov(a, b))),
+          inside: cs.every((c) => c.left >= 0 && c.right <= 430 && c.top >= pl.bottom && c.bottom <= say.top),
+          h: Math.round(cs[0].height), say: document.querySelector('#say').textContent };
+      });
+      const carry = await look();
+      ok(carry.n === 2 && !carry.hit && carry.inside && carry.h >= 100,
+        `もちこしの えさ 2 まいが 横に並び、重ならずに見える (${carry.n} まい・高さ ${carry.h}pt)`);
+      ok(/あわせて/.test(carry.say), `もちこしのときは あわせた数を知らせる (${carry.say.slice(0, 24)})`);
+      await pg.setViewportSize({ width: 430, height: 780 });
+      const carryLow = await look();
+      ok(!carryLow.hit && carryLow.inside, `高さ 780 でも もちこしの えさが タイルや字に かからない (高さ ${carryLow.h}pt)`);
+      await pg.setViewportSize({ width: 430, height: 932 });
+      await ctx.close();
+    }
+    {
+      // みんなで: ひとが 2 人なら、スマホを わたす知らせをはさみ、その人の手札を出す
+      const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+      const pg = await ctx.newPage();
+      await pg.addInitScript(() => localStorage.setItem('pelican-v1', JSON.stringify({ seats: ['ひと', 'ひと', 'CPU', 'おやすみ'] })));
+      await pg.goto(URL, { waitUntil: 'load' });
+      await pg.locator('#toSetup').tap();
+      await pg.locator('#start').tap();
+      const pass1 = await pg.locator('#modal h2').textContent({ timeout: 4000 });
+      await pg.locator('#modal button').first().tap();
+      await pg.locator('#hand .cell[data-n="15"]').tap();
+      await pg.locator('#go').tap();
+      const pass2 = await pg.locator('#modal h2').textContent({ timeout: 4000 });
+      await pg.locator('#modal button').first().tap();
+      const fresh = await pg.evaluate(() => !document.querySelector('#hand .cell.used') && window.__app.ui.picking === 1);
+      ok(/こども/.test(pass1) && /くろねこ/.test(pass2) && fresh,
+        `ひとが 2 人のとき、わたす知らせ (${pass1} → ${pass2}) のあと その人の手札 (15 まい) が出る`);
+      await ctx.close();
+    }
+    {
+      // えらんだ席は覚えておく。前の版の保存 (足りない・おかしな値) でも開ける
+      const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+      const pg = await ctx.newPage();
+      await pg.goto(URL, { waitUntil: 'load' });
+      await pg.locator('#toSetup').tap();
+      await pg.locator('.seat:nth-child(4) button[data-m="おやすみ"]').tap();
+      await pg.reload();
+      await pg.locator('#toSetup').tap();
+      const kept = await pg.locator('.seat:nth-child(4) button.on').textContent();
+      await pg.evaluate(() => localStorage.setItem('pelican-v1', JSON.stringify({ seats: ['おやすみ', 'ひと'] })));
+      await pg.reload();
+      await pg.locator('#toSetup').tap();
+      const merged = await pg.evaluate(() => [...document.querySelectorAll('.seat button.on')].map((b) => b.textContent));
+      ok(kept === 'おやすみ', `えらんだ席を 開き直しても 覚えている (${kept})`);
+      ok(merged.join() === 'ひと,ひと,CPU,CPU', `古い保存でも 足りない席を うめて開ける (${merged.join(' / ')})`);
+      await ctx.close();
     }
 
     // ------------------------------------------------ 明るい画面・暗い画面

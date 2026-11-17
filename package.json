@@ -1,7 +1,7 @@
 {
-  "name": "app-template",
+  "name": "pelican",
   "version": "1.0.0",
-  "description": "ビルドなしで動くアプリの雛形 (進め方のルールつき)",
+  "description": "えさのカードを、数の大きさで取りあう カードゲーム",
   "private": true,
   "scripts": {
     "start": "node serve.js",

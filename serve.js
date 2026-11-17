@@ -13,7 +13,8 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
-  '.png': 'image/png'
+  '.png': 'image/png',
+  '.webp': 'image/webp'
 };
 
 const server = http.createServer((req, res) => {
@@ -40,5 +41,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`しきつめパズル: http://localhost:${PORT}/`);
+  console.log(`ぱくぱくペリカン: http://localhost:${PORT}/`);
 });
