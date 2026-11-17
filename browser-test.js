@@ -226,7 +226,9 @@ async function run() {
       ok(seen.every((s) => s.shown === 4 && s.gone), '毎回 4 人ぶんのカードが表に出て、出したカードは手札から消える');
       ok(pickFit.every((s) => s.fit), `高さ 780 で 15 回とも、えらぶ前の案内が手札にかからない (${pickFit.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
       ok(seen.every((s) => s.fit), `高さ 780 で 15 回とも、結果の字が手札にかからない (${seen.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
-      ok(seen.some((s) => /パクッ|ひきとり/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
+      // 「パクッ」はペリカンを食べているように見えると言われた。どこにも出さない
+      ok(seen.every((s) => !/パク/.test(s.say)) && !(await pg.evaluate(() => /パク/.test(document.body.innerHTML))), '「パクッ」の字が出てこない');
+      ok(seen.some((s) => /ゲット|ひきとり/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
       const end = await pg.evaluate(() => {
         const G = window.__app.G, sc = Core.scores(G);
         const rows = [...document.querySelectorAll('#modal .rk .pt')].map((e) => +e.textContent);

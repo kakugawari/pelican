@@ -222,7 +222,7 @@ function sayHTML(r) {
   const p = P[r.winner];
   const v = r.cards.reduce((s, x) => s + x, 0);
   const f = `<img class="face" style="--pc:${p.c}" src="${face(p.av, p.face)}" alt="">`;
-  return v >= 0 ? `${f}${esc(p.name)} パクッ! <span style="color:#ffd35c">+${v}</span>`
+  return v >= 0 ? `${f}${esc(p.name)} ゲット! <span style="color:#ffd35c">+${v}</span>`
     : `${f}${esc(p.name)} ひきとり… <span style="color:#d9c2ff">−${-v}</span>`;
 }
 
@@ -292,7 +292,7 @@ function rules() {
   return modal(`<h2>あそびかた</h2><ol class="rules">
     <li>えさの カードを 1まい めくるよ</li>
     <li>みんな 手札から 1まい えらんで、<b>いっせいに 出す</b></li>
-    <li>プラスの えさは、<b>いちばん 大きい数</b>の人が パクッ!</li>
+    <li>プラスの えさは、<b>いちばん 大きい数</b>の人が ゲット!</li>
     <li>マイナスの えさは、<b>いちばん 小さい数</b>の人が ひきとる…</li>
     <li><b>おなじ数</b>を出した人は うちけし。のこった人で きめるよ</li>
     <li>みんな うちけしなら、えさは <b>もちこし</b>。つぎの えさと いっしょに とりあう</li>
