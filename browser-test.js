@@ -147,6 +147,8 @@ async function run() {
       }
       await pg.locator('#toRules').tap();
       ok(/あそびかた/.test(await pg.locator('#modal h2').textContent()), 'タイトルの「ルール」で あそびかたが出る');
+      const rulesText = await pg.locator('#modal').innerText();
+      ok(!/パク|えさ/.test(rulesText) && /ペリカン/.test(rulesText), 'ルールの説明に「パクッ」「ペリカン」が無く、ペリカンと呼んでいる');
       await ctx.close();
     }
     {
@@ -188,9 +190,9 @@ async function run() {
       });
       ok(fit.n === 15 && fit.inside, `手札 15 まいが 画面の中に見える (${fit.n} まい)`);
       ok(fit.over <= 0 && fit.bottom <= 932 - 34 + 1 && fit.gap >= 0 && fit.gap2 >= 0,
-        `安全域を入れても はみ出さず、えさが 人のタイルにも手札にも重ならない (下 ${fit.bottom}pt / あまり ${fit.over} / すき間 上 ${fit.gap}pt・下 ${fit.gap2}pt)`);
-      // えさのカードそのものの大きさを見る (高さが足りないと flex で縦につぶれ、すき間だけ見る見張りは通っていた)
-      ok(fit.fw === 128 && fit.fh === 166, `安全域を入れても えさのカードが つぶれない (${fit.fw}x${fit.fh}pt / 決めた大きさ 128x166)`);
+        `安全域を入れても はみ出さず、ペリカンが 人のタイルにも手札にも重ならない (下 ${fit.bottom}pt / あまり ${fit.over} / すき間 上 ${fit.gap}pt・下 ${fit.gap2}pt)`);
+      // ペリカンのカードそのものの大きさを見る (高さが足りないと flex で縦につぶれ、すき間だけ見る見張りは通っていた)
+      ok(fit.fw === 128 && fit.fh === 166, `安全域を入れても ペリカンのカードが つぶれない (${fit.fw}x${fit.fh}pt / 決めた大きさ 128x166)`);
       // テストプレイ (Claude の中で開く) は画面が低い。そこでは形を保ったまま 小さくなり、重ならない
       await pg.setViewportSize({ width: 430, height: 780 });
       const low = await pg.evaluate(() => {
@@ -199,7 +201,7 @@ async function run() {
         return { ratio: +(f.width / f.height).toFixed(3), h: Math.round(f.height), up: Math.round(f.top - pl.bottom), down: Math.round(hand.top - say.bottom) };
       });
       ok(Math.abs(low.ratio - 128 / 166) < 0.01 && low.h >= 100 && low.up >= 0 && low.down >= 0,
-        `高さ 780 でも えさのカードは形を保って小さくなり (${low.h}pt / 縦横比 ${low.ratio})、タイルと手札に重ならない (すき間 ${low.up}・${low.down}pt)`);
+        `高さ 780 でも ペリカンのカードは形を保って小さくなり (${low.h}pt / 縦横比 ${low.ratio})、タイルと手札に重ならない (すき間 ${low.up}・${low.down}pt)`);
       await pg.setViewportSize({ width: 430, height: 932 });
 
       // 15 回は 低い画面 (780) で遊び、毎回の結果の字が手札にかからないことも見る
@@ -227,7 +229,9 @@ async function run() {
       ok(pickFit.every((s) => s.fit), `高さ 780 で 15 回とも、えらぶ前の案内が手札にかからない (${pickFit.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
       ok(seen.every((s) => s.fit), `高さ 780 で 15 回とも、結果の字が手札にかからない (${seen.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
       // 「パクッ」はペリカンを食べているように見えると言われた。どこにも出さない
-      ok(seen.every((s) => !/パク/.test(s.say)) && !(await pg.evaluate(() => /パク/.test(document.body.innerHTML))), '「パクッ」の字が出てこない');
+      // 「パクッ」「ペリカン」は、ペリカンを食べているように見えると言われた。どこにも出さない (ルールの説明も開いて見る)
+      const eat = await pg.evaluate(() => (document.title + document.querySelector('meta[name=description]').content + document.body.innerText).match(/パク|えさ/g));
+      ok(seen.every((s) => !/パク|えさ/.test(s.say)) && !eat, `「パクッ」「ペリカン」の字が出てこない (${eat ? eat.join(',') : 'なし'})`);
       ok(seen.some((s) => /ゲット|ひきとり/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
       const end = await pg.evaluate(() => {
         const G = window.__app.G, sc = Core.scores(G);
@@ -239,7 +243,7 @@ async function run() {
       await ctx.close();
     }
     {
-      // もちこし: みんな打ち消しのあと、えさを重ねて「もちこし」と出す
+      // もちこし: みんな打ち消しのあと、ペリカンを重ねて「もちこし」と出す
       const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
       const pg = await ctx.newPage();
       await pg.addInitScript(() => localStorage.setItem('pelican-v1', JSON.stringify({ seats: ['ひと', 'CPU', 'おやすみ', 'おやすみ'] })));
@@ -257,11 +261,11 @@ async function run() {
       const tie = await pg.evaluate(() => ({ say: document.querySelector('#say').textContent, x: document.querySelectorAll('#players .x').length,
         fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top }));
       await pg.setViewportSize({ width: 430, height: 932 });
-      ok(/もちこし/.test(tie.say) && tie.x === 2 && tie.fit, `同じ数は ✕ で打ち消し、えさは もちこし (${tie.say.slice(0, 22)} / ✕ ${tie.x})`);
+      ok(/もちこし/.test(tie.say) && tie.x === 2 && tie.fit, `同じ数は ✕ で打ち消し、ペリカンは もちこし (${tie.say.slice(0, 22)} / ✕ ${tie.x})`);
       await pg.evaluate(() => { Core.cpuPick = window.__realPick; });
       await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
       await pg.waitForFunction(() => window.__app.ui.picking != null);
-      // もちこしのえさは横に並べ、どのカードも ほかと重ならずに全部見える (重ねていたら後ろのカードが隠れた)
+      // もちこしのペリカンは横に並べ、どのカードも ほかと重ならずに全部見える (重ねていたら後ろのカードが隠れた)
       const look = async () => pg.evaluate(() => {
         const ov = (a, b) => !(a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5);
         const cs = [...document.querySelectorAll('#food .fc')].map((e) => e.getBoundingClientRect());
@@ -273,11 +277,11 @@ async function run() {
       });
       const carry = await look();
       ok(carry.n === 2 && !carry.hit && carry.inside && carry.h >= 100,
-        `もちこしの えさ 2 まいが 横に並び、重ならずに見える (${carry.n} まい・高さ ${carry.h}pt)`);
+        `もちこしの ペリカン 2 まいが 横に並び、重ならずに見える (${carry.n} まい・高さ ${carry.h}pt)`);
       ok(/あわせて/.test(carry.say), `もちこしのときは あわせた数を知らせる (${carry.say.slice(0, 24)})`);
       await pg.setViewportSize({ width: 430, height: 780 });
       const carryLow = await look();
-      ok(!carryLow.hit && carryLow.inside, `高さ 780 でも もちこしの えさが タイルや字に かからない (高さ ${carryLow.h}pt)`);
+      ok(!carryLow.hit && carryLow.inside, `高さ 780 でも もちこしの ペリカンが タイルや字に かからない (高さ ${carryLow.h}pt)`);
       await pg.setViewportSize({ width: 430, height: 932 });
       await ctx.close();
     }
