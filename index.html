@@ -3,38 +3,68 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>アプリの雛形</title>
-<meta name="description" content="ビルドなしで動くアプリの雛形">
-<meta name="theme-color" content="#151a2e">
-<!-- ホーム画面に追加して開いたとき、時計や電池の帯の下まで画面を描く。
-     無いと iOS は帯の下からページを始め、帯を theme-color の板で塗る (画面のいちばん上が別の色になる)。
-     上の安全域は styles.css の env(safe-area-inset-top) で空けてある。
-     iOS は追加したときの設定を覚えているので、前に追加したアイコンは作り直さないと変わらない -->
+<title>ペリカン パクパク</title>
+<meta name="description" content="えさのカードを、数の大きさで取りあう カードゲーム">
+<meta name="theme-color" content="#7fd3f5">
+<!-- ホーム画面に追加して開いたとき、時計や電池の帯の下まで画面を描く (CLAUDE.md の落とし穴の表) -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="icon" href="./icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="manifest" href="./manifest.json">
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 
-<div id="app">
-  <header id="topbar">
-    <h1 class="title">アプリの雛形</h1>
-    <div class="topbar-actions">
-      <button type="button" id="btnAction" class="btn btn-primary">ためす</button>
-    </div>
-  </header>
+<!-- タイトル -->
+<section id="title" class="screen">
+  <div class="sun"></div>
+  <div class="ttl">
+    <div class="ttl-sub">えさを とりあう カードゲーム</div>
+    <h1>ペリカン<br><span>パクパク</span></h1>
+  </div>
+  <img class="hero" src="img/p1.webp" alt="" draggable="false">
+  <div class="crew">
+    <img src="img/f_kid_happy.webp" style="--pc:#3d8bf2" alt="">
+    <img src="img/f_cat_happy.webp" style="--pc:#8058b3" alt="">
+    <img src="img/f_fox_happy.webp" style="--pc:#3e965f" alt="">
+    <img src="img/f_owl_happy.webp" style="--pc:#a0624e" alt="">
+  </div>
+  <div class="tbtns">
+    <button id="toSetup" class="btn big">あそぶ</button>
+    <button id="toRules" class="btn ghost">ルール</button>
+  </div>
+</section>
 
-  <main id="stage">
-    <p class="lead">ここにアプリを作る。</p>
-    <p class="result" id="result">—</p>
-    <p class="note">
-      ロジックは <code>src/core.js</code> に、画面は <code>src/app.js</code> に書く。<br>
-      <code>npm test</code> でロジックを、<code>npm run test:ui</code> で画面を確かめる。
-    </p>
-  </main>
-</div>
+<!-- だれと あそぶか -->
+<section id="setup" class="screen" hidden>
+  <h2>だれと あそぶ?</h2>
+  <div id="seats"></div>
+  <p class="note" id="setupNote"></p>
+  <div class="tbtns">
+    <button id="start" class="btn big">はじめる</button>
+    <button id="setupBack" class="btn ghost">もどる</button>
+  </div>
+</section>
+
+<!-- ゲーム -->
+<section id="game" class="screen" hidden>
+  <header id="bar">
+    <button id="quit" class="chip-btn">やめる</button>
+    <div id="round"></div>
+    <button id="rulesInGame" class="chip-btn">ルール</button>
+  </header>
+  <div id="players"></div>
+  <div id="field">
+    <div id="food"></div>
+    <div id="say"></div>
+  </div>
+  <div id="hand"></div>
+  <div id="info"><span id="infoTxt"></span><button id="go" class="btn" hidden>これを 出す</button></div>
+</section>
+
+<!-- 知らせ (順番の交代・結果・ルール) -->
+<div id="modal" class="ov" hidden><div class="box" id="modalBox"></div></div>
 
 <script src="./core.js"></script>
 <script src="./app.js"></script>
