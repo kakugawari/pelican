@@ -147,8 +147,22 @@ async function run() {
       }
       await pg.locator('#toRules').tap();
       ok(/あそびかた/.test(await pg.locator('#modal h2').textContent()), 'タイトルの「ルール」で あそびかたが出る');
+
       const rulesText = await pg.locator('#modal').innerText();
-      ok(!/パク|えさ/.test(rulesText) && /ペリカン/.test(rulesText), 'ルールの説明に「パクッ」「ペリカン」が無く、ペリカンと呼んでいる');
+      ok(!/パク|えさ/.test(rulesText) && /ペリカン/.test(rulesText), 'ルールの説明に「パクッ」「えさ」が無く、ペリカンと呼んでいる');
+      await pg.locator('#modal button').first().tap();
+      const tfx = await pg.evaluate(() => { const fx = document.querySelector('#title .tfx'); return { n: (fx ? fx.getAnimations({ subtree: true }).length : 0) + document.querySelector('#toSetup').getAnimations({ subtree: true }).length,
+        pe: fx ? getComputedStyle(fx).pointerEvents : 'なし' }; });
+      ok(tfx.n >= 10 && tfx.pe === 'none', `タイトルが動いている (動き ${tfx.n} 個)。動きの層はタップを通す`);
+      // 音の切りかえ: 押すと消え、開き直しても覚えている
+      await pg.locator('#toSetup').tap();
+      await pg.locator('#start').tap();
+      await pg.locator('#snd').tap({ timeout: 1500 }).catch(() => {});
+      const off = await pg.evaluate(() => ({ s: window.__app.settings.sound, l: (document.querySelector('#snd') || { getAttribute: () => 'なし' }).getAttribute('aria-label') || 'なし' }));
+      await pg.reload();
+      const kept = await pg.evaluate(() => window.__app.settings.sound);
+      ok(off.s === false && /オフ/.test(off.l) && kept === false, `音を消すと 表示が「オフ」になり、開き直しても覚えている (${off.l})`);
+      await pg.evaluate(() => localStorage.removeItem('pelican-v1'));
       await ctx.close();
     }
     {
@@ -174,6 +188,8 @@ async function run() {
       await waitPick(pg);
       const goHidden = await pg.evaluate(() => getComputedStyle(document.querySelector('#go')).display);
       ok(goHidden === 'none', `カードをえらぶまで「これを 出す」は出さない (${goHidden})`);
+      // 測る前に、ペリカンが めくれて出る動き (一瞬 1.08 倍) が終わるのを待つ
+      await pg.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect && a.effect.getTiming().iterations !== Infinity).map((a) => a.finished)));
       // 15 まいの手札が、送らずに全部 画面の中に見える。安全域 (上59・下34) を差し込んでも はみ出さない
       const fit = await pg.evaluate(() => {
         const cells = [...document.querySelectorAll('#hand .cell')].map((c) => c.getBoundingClientRect());
@@ -207,37 +223,49 @@ async function run() {
       // 15 回は 低い画面 (780) で遊び、毎回の結果の字が手札にかからないことも見る
       await pg.setViewportSize({ width: 430, height: 780 });
       let rounds = 0, seen = [], pickFit = [];
+      // まだ出していない台は点線の枠。名前が「あなた」なので「あなた」の札は重ねない
+      const pre = await pg.evaluate(() => ({ dash: getComputedStyle(document.querySelector('#players .slot')).borderTopStyle, you: document.querySelectorAll('#players .you').length }));
+      ok(pre.dash === 'dashed' && pre.you === 0, `まだ出していない台は点線の枠で、「あなた」の札を二重に出さない (${pre.dash} / 札 ${pre.you})`);
       for (let k = 0; k < 40 && rounds < 15; k++) {
         if (!(await pg.evaluate(() => document.querySelector('#modal').hidden))) break;
         const n = await pg.evaluate(() => window.__app.G.hands[0][0]);
         // えらぶ前の案内 (大きい数が もらえる / 小さい数が ひきとる) も、手札にかからない
         pickFit.push(await pg.evaluate(() => ({ say: document.querySelector('#say').textContent,
           fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top + 0.5 })));
+        const f0 = await pg.evaluate(() => window.__app.flights);
         await pg.locator(`#hand .cell[data-n="${n}"]`).tap();
         await pg.locator('#go').tap();
         rounds++;
         // めくったあと: 出したカードが 4 人ぶん見え、手札から消えている
-        await pg.waitForFunction(() => window.__app.ui.plays && window.__app.ui.plays.revealed, null, { timeout: 4000 });
+        await pg.waitForFunction(() => window.__app.ui.plays && window.__app.ui.plays.revealed && /タップで/.test(document.querySelector('#say').textContent), null, { timeout: 6000 });
         seen.push(await pg.evaluate((n) => ({ shown: document.querySelectorAll('#players .slot .hc:not(.back)').length,
           gone: !!document.querySelector(`#hand .cell.used[data-n="${n}"]`), say: document.querySelector('#say').textContent,
+          flew: window.__app.flights, won: window.__app.ui.result && window.__app.ui.result.winner != null, food: document.querySelectorAll('#food .fc').length,
+          score: (() => { const r = window.__app.ui.result; if (!r || r.winner == null) return true; return +document.querySelector(`#players .pl[data-p="${r.winner}"] .sc`).firstChild.textContent === Core.scores(window.__app.G)[r.winner]; })(),
           fit: document.querySelector('#say').getBoundingClientRect().bottom <= document.querySelector('#hand').getBoundingClientRect().top + 0.5 }), n));
+        seen[seen.length - 1].f0 = f0;
         await pg.locator('#field').tap({ position: { x: 20, y: 20 } });
         await pg.waitForFunction(() => window.__app.ui.picking != null || !document.querySelector('#modal').hidden, null, { timeout: 8000 });
       }
       ok(rounds === 15, `15 回 カードを出せる (${rounds} 回)`);
       ok(seen.every((s) => s.shown === 4 && s.gone), '毎回 4 人ぶんのカードが表に出て、出したカードは手札から消える');
+      // 数字カードは 出した人の所から台へ飛び、とったペリカンは その人の所へ飛ぶ (犯人はおどると同じ)。とられたペリカンは場に戻らない
+      ok(seen.every((s) => s.flew - s.f0 >= 4 + (s.won ? 1 : 0)), `毎回、4 まいの数字カードが台へ飛び、とったペリカンも飛ぶ (${seen.map((s) => s.flew - s.f0).join(',')} 回)`);
+      ok(seen.every((s) => !s.won || s.food === 0), 'とられたペリカンは 場に戻らない');
+      ok(seen.every((s) => s.score), 'ペリカンが届いたあと、点が ゲームの記録と合う');
       ok(pickFit.every((s) => s.fit), `高さ 780 で 15 回とも、えらぶ前の案内が手札にかからない (${pickFit.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
       ok(seen.every((s) => s.fit), `高さ 780 で 15 回とも、結果の字が手札にかからない (${seen.filter((s) => !s.fit).map((s) => s.say).join(' / ') || 'かかった回なし'})`);
       // 「パクッ」はペリカンを食べているように見えると言われた。どこにも出さない
       // 「パクッ」「ペリカン」は、ペリカンを食べているように見えると言われた。どこにも出さない (ルールの説明も開いて見る)
       const eat = await pg.evaluate(() => (document.title + document.querySelector('meta[name=description]').content + document.body.innerText).match(/パク|えさ/g));
-      ok(seen.every((s) => !/パク|えさ/.test(s.say)) && !eat, `「パクッ」「ペリカン」の字が出てこない (${eat ? eat.join(',') : 'なし'})`);
+      ok(seen.every((s) => !/パク|えさ/.test(s.say)) && !eat, `「パクッ」「えさ」の字が出てこない (${eat ? eat.join(',') : 'なし'})`);
       ok(seen.some((s) => /ゲット|ひきとり/.test(s.say)), `だれが とったかを知らせる (${seen[0] && seen[0].say.slice(0, 20)})`);
       const end = await pg.evaluate(() => {
         const G = window.__app.G, sc = Core.scores(G);
         const rows = [...document.querySelectorAll('#modal .rk .pt')].map((e) => +e.textContent);
         return { modal: !document.querySelector('#modal').hidden, rows, sc: sc.slice().sort((a, b) => b - a), left: G.hands.flat().length };
       });
+      ok(await pg.evaluate(() => /あなたは \d+い/.test(document.querySelector('#modal').innerText)), '終わりの画面に「あなたは ○い」が出る');
       ok(end.modal && end.left === 0 && JSON.stringify(end.rows) === JSON.stringify(end.sc),
         `おわると 順位が出て、てんが ゲームの記録と合う (${end.rows.join(' / ')})`);
       await ctx.close();
@@ -255,7 +283,7 @@ async function run() {
       await pg.evaluate(() => { window.__realPick = Core.cpuPick; Core.cpuPick = () => 7; });
       await pg.locator('#hand .cell[data-n="7"]').tap();
       await pg.locator('#go').tap();
-      await pg.waitForFunction(() => window.__app.ui.result);
+      await pg.waitForFunction(() => window.__app.ui.result && /タップで/.test(document.querySelector('#say').textContent));
       // 低い画面でも、結果の字が手札にかからない (字を大きくしたら 3 行になって かかった)
       await pg.setViewportSize({ width: 430, height: 780 });
       const tie = await pg.evaluate(() => ({ say: document.querySelector('#say').textContent, x: document.querySelectorAll('#players .x').length,

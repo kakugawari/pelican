@@ -24,10 +24,72 @@ function loadSettings() {
   // 保存があっても、足りない所は初期値で埋める (CLAUDE.md の落とし穴「初期値は、保存があっても足す」)
   if (s && Array.isArray(s.seats)) s.seats.forEach((m, i) => { if (i < 4 && MODES.includes(m)) seats[i] = m; });
   seats[0] = seats[0] === 'おやすみ' ? 'ひと' : seats[0];
-  return { seats };
+  return { seats, sound: !(s && s.sound === false) };
 }
 const settings = loadSettings();
 function save() { try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch (e) { /* 保存できなくても遊べる */ } }
+
+/* ---------------- 効果音 (その場で合成する。音の絵は持たない) ---------------- */
+let AC = null;
+function ac() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+// 1 音。止めるときは値を読まずに予定で落とす (CLAUDE.md の落とし穴「音を止めるとバチッ」)
+function tone(f, d, type, v, when, slide) {
+  const a = settings.sound && ac(); if (!a) return;
+  const t = a.currentTime + (when || 0), o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t + d);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v || 0.15, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.03);
+}
+function noise(d, v, f, when) {
+  const a = settings.sound && ac(); if (!a) return;
+  const t = a.currentTime + (when || 0), n = Math.floor(a.sampleRate * d), buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const src = a.createBufferSource(), bp = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = f || 2400; g.gain.value = v || 0.12;
+  src.connect(bp).connect(g).connect(a.destination); src.start(t);
+}
+const SFX = {
+  tap: () => tone(880, 0.06, 'triangle', 0.08),
+  pick: () => tone(660, 0.07, 'triangle', 0.1, 0, 220),
+  place: () => noise(0.09, 0.16, 1800),                       // カードを置く「シュッ」
+  drum: () => { for (let i = 0; i < 5; i++) noise(0.05, 0.08 + i * 0.02, 900, i * 0.07); },   // めくる前の「ドロロ」
+  flip: () => { noise(0.05, 0.2, 3200); tone(1046, 0.08, 'triangle', 0.09, 0.02); },
+  reveal: () => { tone(600, 0.25, 'sine', 0.12, 0, 500); },  // 新しいペリカンが出る
+  get: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.18, 'triangle', 0.13, i * 0.07)),
+  bad: () => { tone(392, 0.35, 'sawtooth', 0.05, 0, -160); tone(294, 0.45, 'sine', 0.1, 0.18, -90); },
+  cancel: () => { tone(220, 0.18, 'square', 0.06, 0, 120); tone(330, 0.2, 'square', 0.05, 0.14, -100); },
+  carry: () => tone(440, 0.4, 'sine', 0.1, 0, 440),
+  win: () => [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, i > 4 ? 0.5 : 0.2, 'triangle', 0.13, i * 0.11)),
+  lose: () => [523, 440, 392, 330].forEach((f, i) => tone(f, 0.35, 'sine', 0.11, i * 0.16))
+};
+const SND_ON = '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const SND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+function drawSnd() { const b = $('#snd'); b.innerHTML = settings.sound ? SND_ON : SND_OFF; b.setAttribute('aria-label', settings.sound ? 'おと オン' : 'おと オフ'); b.classList.toggle('off', !settings.sound); }
+
+/* ---------------- 飛ぶカード ---------------- */
+// 位置は left/top、動きは transform だけ (CLAUDE.md の落とし穴「置いた直後に要素が一瞬とぶ」)
+const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; };
+let flights = 0;
+function fly(from, to, html, ms, opt) {
+  const o = opt || {};
+  const f = document.createElement('div'); f.className = 'fly'; f.innerHTML = html;
+  f.style.left = from.x + 'px'; f.style.top = from.y + 'px'; f.style.width = (o.w || 48) + 'px'; f.style.height = (o.h || 64) + 'px';
+  document.body.appendChild(f);
+  const dx = to.x - from.x, dy = to.y - from.y, s0 = o.s0 || 1, s1 = o.s1 || 1;
+  if (f.animate) f.animate([
+    { transform: `translate(-50%,-50%) scale(${s0}) rotate(${o.rot || -8}deg)` },
+    { transform: `translate(calc(-50% + ${dx / 2}px),calc(-50% + ${dy / 2 - (o.arc == null ? 40 : o.arc)}px)) scale(${(s0 + s1) / 2 * 1.08}) rotate(4deg)`, offset: 0.5 },
+    { transform: `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(${s1}) rotate(0)` }], { duration: ms, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' });
+  flights++;
+  return new Promise((r) => setTimeout(() => { f.remove(); r(); }, ms));
+}
+function bump(el, big) { if (el && el.animate) el.animate([{ transform: 'scale(1)' }, { transform: `scale(${big || 1.35})` }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' }); }
 
 function show(id) {
   for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id;
@@ -108,18 +170,17 @@ function newGame() {
 function render() {
   if (!G) return;
   $('#round').textContent = `${Math.min(G.round, 15)} / 15 かいめ`;
-  const sc = Core.scores(G);
+  const sc = ui.scoreHold || Core.scores(G);
   $('#players').innerHTML = P.map((p, i) => {
     const r = ui.result;
     const win = r && r.winner === i;
     let slot = '';
-    if (ui.plays && ui.plays[i] != null) {
+    if (ui.plays && ui.plays[i] != null && (!ui.landed || ui.landed.has(i))) {
       slot = ui.plays.revealed ? (r && r.cancelled.includes(ui.plays[i])
         ? handCard(ui.plays[i]).replace('class="hc"', 'class="hc out"') + '<div class="x">✕</div>' : handCard(ui.plays[i]))
         : '<div class="hc back"></div>';
     }
     return `<div class="pl ${win ? (r.value >= 0 ? 'win' : 'lose') : ''}" data-p="${i}" style="--pc:${p.c}">
-      ${p.you ? '<div class="you">あなた</div>' : ''}
       <img class="face" src="${face(p.av, p.face)}" alt="">
       <div class="nm">${esc(p.name)}</div>
       <div class="sc">${sc[i]}<small> てん</small></div>
@@ -127,7 +188,7 @@ function render() {
   }).join('');
   // 場のペリカンのカード (もちこしなら横に並べる)
   // 結果を見せている間は、とられる前の ペリカンを出したままにする
-  const pot = ui.potShow || G.pot;
+  const pot = ui.potHide ? [] : (ui.potShow || G.pot);
   if (pot.length) {
     const html = pot.map((v, k) => foodCard(v, k)).join('');
     if ($('#food').dataset.k !== pot.join(',')) {
@@ -135,7 +196,8 @@ function render() {
       $('#food').innerHTML = html;
       $('#food').className = pot.length > 1 ? 'n' + Math.min(pot.length, 4) : '';
       const all = document.querySelectorAll('#food .fc'), top = all[all.length - 1];
-      if (top && top.animate) top.animate([{ transform: 'scale(.4) rotate(-12deg)', opacity: 0 }, { transform: 'scale(1.08)', opacity: 1 }, { transform: 'scale(1)' }], { duration: 420, easing: 'ease-out' });
+      // 新しいペリカンは、山から くるっと めくれて出る
+      if (top && top.animate && !ui.potShow) { top.animate([{ transform: 'translateY(-60px) rotateY(90deg) scale(.6)', opacity: 0 }, { transform: 'translateY(0) rotateY(0) scale(1.08)', opacity: 1, offset: 0.7 }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' }); SFX.reveal(); }
     }
   } else { $('#food').innerHTML = ''; $('#food').dataset.k = ''; }
   renderHand();
@@ -161,6 +223,7 @@ $('#hand').addEventListener('click', (e) => {
   const c = e.target.closest('.cell:not(.used)');
   if (!c || ui.picking == null) return;
   ui.sel = +c.dataset.n;
+  SFX.pick();
   renderHand();
 });
 
@@ -234,7 +297,7 @@ async function loop() {
   while (alive() && !G.over) {
     Core.reveal(G);
     P.forEach((p) => { p.face = 'normal'; });
-    ui.plays = null; ui.result = null; ui.potShow = null;
+    ui.plays = null; ui.result = null; ui.potShow = null; ui.potHide = false; ui.scoreHold = null; ui.landed = null;
     const v = Core.potValue(G);
     // もちこしなら、まず「あわせていくつか」を知らせる (場の合計で大きい数か小さい数かが決まる)
     const sub = G.pot.length > 1 ? `<span class="sub">もちこし ${G.pot.length}まい ・ あわせて ${v >= 0 ? '+' + v : '−' + -v}</span>` : '';
@@ -249,24 +312,64 @@ async function loop() {
       if (!alive()) return;
     }
     P.forEach((p, i) => { if (p.cpu) plays[i] = Core.cpuPick(G, i, Math.random, p.mood); });
-    // ふせて出す → いっせいに めくる
-    ui.plays = plays.slice(); ui.plays.revealed = false;
+    // ふせたカードが、出した人の所から 自分の台へ飛んでくる (ひとの手札からは手札の場所から)
+    ui.plays = plays.slice(); ui.plays.revealed = false; ui.landed = new Set();
     render();
-    await sleep(500);
+    await Promise.all(P.map((p, i) => sleep(i * 90).then(() => {
+      const slot = document.querySelector(`#players .pl[data-p="${i}"] .slot`);
+      const cell = p.you && document.querySelector(`#hand .cell[data-n="${plays[i]}"]`);
+      const from = cell ? center(cell) : center(document.querySelector(`#players .pl[data-p="${i}"] .face`));
+      SFX.place();
+      return fly(from, center(slot), '<div class="hc back"></div>', 330, { s0: cell ? 1.4 : 0.6, arc: cell ? 70 : 24 }).then(() => { ui.landed.add(i); render(); });
+    })));
+    ui.landed = null;
+    if (!alive()) return;
+    // せーの… (ドロロ) → いっせいに めくる
+    $('#say').innerHTML = 'せーの…';
+    SFX.drum();
+    await sleep(340);
     if (!alive()) return;
     ui.plays.revealed = true;
     ui.potShow = G.pot.slice();
+    ui.scoreHold = Core.scores(G);
     const r = Core.resolve(G, plays);
     ui.result = r;
     if (r.winner !== null) P[r.winner].face = r.value >= 0 ? 'happy' : 'sad';
     else P.forEach((p, i) => { if (r.cancelled.includes(plays[i])) p.face = 'shock'; });
+    ui.result = Object.assign({}, r, { winner: null });   // とった人の光は、ペリカンが届いてから
     render();
-    for (const el of document.querySelectorAll('#players .slot .hc')) el.animate && el.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: 260 });
+    SFX.flip();
+    document.querySelectorAll('#players .slot .hc').forEach((el, k) => el.animate && el.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0)' }], { duration: 260, delay: k * 60, fill: 'backwards' }));
+    if (r.cancelled.length) setTimeout(() => SFX.cancel(), 300);
+    await sleep(r.cancelled.length ? 650 : 380);
+    if (!alive()) return;
+    if (r.winner !== null) {
+      // とったペリカンが、場から その人の所へ飛んでいく。届いたら点がはねる
+      const tile = document.querySelector(`#players .pl[data-p="${r.winner}"] .face`);
+      const cards = [...document.querySelectorAll('#food .fc')].map((el) => ({ c: center(el), html: el.outerHTML }));
+      ui.potHide = true; render();
+      await Promise.all(cards.map((k, j) => sleep(j * 90).then(() => fly(k.c, center(tile), k.html, 460, { w: k.c.w, h: k.c.h, s0: 1, s1: 0.28, arc: 60, rot: 0 }))));
+      ui.potHide = false; ui.potShow = null; ui.scoreHold = null; ui.result = r;   // とられたペリカンは場に戻さない
+      if (!alive()) return;
+      render();
+      bump(document.querySelector(`#players .pl[data-p="${r.winner}"] .sc`), 1.5);
+      (r.value >= 0 ? SFX.get : SFX.bad)();
+    } else { ui.scoreHold = null; SFX.carry(); render(); }
     $('#say').innerHTML = sayHTML(r) + '<span class="tap">タップで つぎへ ▸</span>';
-    await readPause(2600);
+    // 結果は動き (ペリカンが飛ぶ・点がはねる) でも見えているので、読む間は 1.9 秒 (前は 2.6 秒)
+    await readPause(1900);
     if (!alive()) return;
   }
   if (alive()) finish();
+}
+
+// 紙ふぶき (勝ったとき)。CSS で落とすだけで、毎コマ描かない
+function confetti() {
+  const box = document.createElement('div'); box.className = 'confetti';
+  const cols = ['#ffd35c', '#ff8a1f', '#5fc3ee', '#8fd46a', '#f9a6c4', '#bf9cf0'];
+  box.innerHTML = Array.from({ length: 36 }, (_, k) => `<i style="left:${(k * 37) % 100}%;background:${cols[k % 6]};animation-delay:${(k % 9) * 0.12}s;animation-duration:${2.2 + (k % 5) * 0.3}s"></i>`).join('');
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 4200);
 }
 
 async function finish() {
@@ -283,7 +386,13 @@ async function finish() {
       <img class="face" src="${face(p.av, wins.includes(i) ? 'happy' : 'normal')}" alt=""><div class="nm">${esc(p.name)}</div><div class="pt">${sc[i]}</div></div>`;
   }).join('');
   const title = wins.length > 1 ? 'ひきわけ!' : `${esc(P[wins[0]].name)} の かち!`;
-  const k = await modal(`<h2>${title}</h2><div class="rank">${rows}</div>`, ['もういちど', 'タイトルへ']);
+  const me = P.findIndex((p) => p.you);
+  const myRank = me >= 0 ? order.findIndex((i) => sc[i] === sc[me]) + 1 : 0;
+  (me < 0 || wins.includes(me) ? SFX.win : SFX.lose)();
+  if (me < 0 || wins.includes(me)) confetti();
+  const big = wins.length === 1 ? `<img class="big-face win" style="--pc:${P[wins[0]].c}" src="${face(P[wins[0]].av, 'happy')}" alt="">` : '';
+  const mine = me >= 0 ? `<p class="mine">あなたは <b>${myRank}い</b>${wins.includes(me) ? '!' : ''}</p>` : '';
+  const k = await modal(`${big}<h2>${title}</h2>${mine}<div class="rank">${rows}</div>`, ['もういちど', 'タイトルへ']);
   if (k === 0) newGame(); else { G = null; show('title'); }
 }
 
@@ -300,7 +409,9 @@ function rules() {
 }
 
 /* ---------------- ボタン ---------------- */
-$('#toSetup').onclick = () => { renderSeats(); show('setup'); };
+$('#toSetup').onclick = () => { ac(); SFX.tap(); renderSeats(); show('setup'); };
+$('#snd').onclick = () => { settings.sound = !settings.sound; save(); drawSnd(); if (settings.sound) { ac(); SFX.tap(); } };
+drawSnd();
 $('#setupBack').onclick = () => show('title');
 $('#start').onclick = () => { if (settings.seats.filter((m) => m !== 'おやすみ').length >= 2) newGame(); };
 $('#toRules').onclick = rules;
@@ -311,7 +422,7 @@ $('#quit').onclick = async () => {
 };
 
 // テストからのぞく入口
-window.__app = { get G() { return G; }, get P() { return P; }, ui, settings };
+window.__app = { get G() { return G; }, get P() { return P; }, ui, settings, get flights() { return flights; } };
 
 layoutTitle();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
